@@ -1,2 +1,151 @@
-# Nastarxa-Batch-Image-Resizer
-Batch Image Resizer
+# 🍍 Nastarxa Batch Image Resizer
+
+A lightweight batch image resizer for Windows built with AutoHotkey v2 and PowerShell/.NET.
+
+No external tools required — everything runs using built-in Windows `System.Drawing`.
+
+![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+![Language](https://img.shields.io/badge/language-AutoHotkey_v2-green)
+
+---
+
+## ✨ Features
+
+### 🖼 Batch Processing
+- Resize multiple images at once using percentage scaling
+- Supports large folders and recursive subfolders
+- Parallel processing for faster conversion
+
+### 📏 DPI & Size Conversion
+- Convert image DPI (72–600+)
+- Quick DPI presets:
+  - 72
+  - 96
+  - 150
+  - 300
+  - 600
+
+### 🎨 Format Support
+Convert images to:
+- PNG
+- JPEG
+- BMP
+- TIFF
+- Or keep original format
+
+### 🧩 JPEG Quality Control
+- Adjustable quality slider (1–100)
+- Uses proper `.NET EncoderParameter` handling
+
+### 🏷 Filename Pattern System
+Rename exported files using tokens:
+
+| Token | Description |
+|---|---|
+| `{name}` | Original filename |
+| `{ext}` | Output extension |
+| `{counter}` | Sequential number |
+
+Examples:
+
+```txt
+{name}_resized{ext}
+thumb_{name}{ext}
+img_{counter}{ext}
+```
+
+### 💾 Presets
+Save and reuse your favorite settings:
+- Thumbnail
+- Web Standard
+- Print High
+- Anime Keyframe
+- Custom presets
+
+### 🖱 Quality of Life
+- Drag & drop folder support
+- File count preview
+- Flat dark progress bar
+- Session auto-save
+- Failed file reporting
+- Resizable interface
+
+---
+
+## 📦 Requirements
+
+- Windows 7 or newer
+- AutoHotkey v2
+- PowerShell (already included in Windows)
+
+---
+
+## 🚀 Usage
+
+1. Launch:
+
+```txt
+Nastarxa Batch Image Resizer.ahk
+```
+
+2. Select:
+   - Input folder
+   - Output folder
+
+3. Configure:
+   - Scale %
+   - DPI
+   - Output format
+   - JPEG quality
+
+4. Click **Start**
+
+Processed images will appear in the output folder.
+
+---
+
+## 📁 File Structure
+
+| File | Description |
+|---|---|
+| `Nastarxa Batch Image Resizer.ahk` | Main GUI application |
+| `Nastarxa Batch Image Resizer.ps1` | Image processor using System.Drawing |
+| `Nastarxa Batch Image Resizer Presets.ini` | Saved presets |
+| `Nastarxa Batch Image Resizer Settings.ini` | Session settings |
+| `Resizer.ico` | Application icon |
+
+---
+
+## ⚙ How It Works
+
+The AutoHotkey script handles:
+- GUI
+- File management
+- Parallel task execution
+- Session saving
+
+Each image is processed through PowerShell using built-in `.NET System.Drawing`:
+
+- Loads source image
+- Resizes with `HighQualityBicubic`
+- Applies target DPI
+- Exports using selected encoder
+- JPEG exports use proper quality encoding
+
+No ImageMagick.  
+No external libraries.  
+Pure Windows-native workflow.
+
+---
+
+## 📄 License
+
+MIT
+See [LICENSE](/LICENSE).
+
+---
+
+## ⚠️ Disclaimer
+
+This project was developed with the assistance of AI tools.
+AI was used to support code writing, refactoring, and documentation, while the design direction, features, and final implementation were guided and reviewed by the author.
