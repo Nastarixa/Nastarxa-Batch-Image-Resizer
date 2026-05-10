@@ -72,6 +72,12 @@ Save and reuse your favorite settings:
 
 ---
 
+## 🖼 Image Preview
+
+![1](docs/images/1.png)
+
+---
+
 ## 📦 Requirements
 
 - Windows 7 or newer
