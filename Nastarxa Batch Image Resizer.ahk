@@ -133,6 +133,12 @@ CreateGUI() {
         btn.OnEvent("Click", SetQuickDpi.Bind(g, dpi))
     }
 
+    g.btnReset := g.AddButton(
+        "x+12 yp w52 h22",
+        "Reset"
+    )
+    g.btnReset.OnEvent("Click", ResetToSource.Bind(g))
+
     ; =========================================================
     ; QUALITY
     ; =========================================================
@@ -176,6 +182,11 @@ CreateGUI() {
     g.recursiveCheck := g.AddCheckBox(
         "x+18 yp Checked " labelColor,
         "Subfolders"
+    )
+
+    g.dpiFolderCheck := g.AddCheckBox(
+        "x+18 yp Checked " labelColor,
+        "DPI Folder"
     )
 
     ; =========================================================
@@ -241,14 +252,15 @@ CreateGUI() {
     ; EVENTS
     ; =========================================================
 
-    g.inputEdit.OnEvent("Change", (*) => (
-        UpdateOutputPath(g),
-        UpdateFileCount(g)
-    ))
+    g.inputEdit.OnEvent("Change", (*) => UpdateFileCount(g))
 
     g.dpiEdit.OnEvent("Change", (*) => UpdateOutputPath(g))
 
     g.recursiveCheck.OnEvent("Click", (*) => UpdateFileCount(g))
+
+    g.dpiFolderCheck.OnEvent("Click", (*) => UpdateOutputPath(g))
+
+    g.outputEdit.OnEvent("Change", OnOutputChange)
 
     g.presetsDropdown.OnEvent("Change", (*) => LoadPresetToGui(g))
 
@@ -401,7 +413,7 @@ OnDropFiles(g, wParam, lParam, msg, hwnd) {
         g.inputEdit.Value := path
     else
         SplitPath(path, , &fileDir), g.inputEdit.Value := fileDir
-    UpdateOutputPath(g)
+    UpdateOutputPath(g, true)
     UpdateFileCount(g)
     return 1
 }
@@ -420,6 +432,7 @@ SaveSession(g) {
     IniWrite(g.inputEdit.Value, s, "LastSession", "InputPath")
     IniWrite(g.outputEdit.Value, s, "LastSession", "OutputPath")
     IniWrite(g.recursiveCheck.Value, s, "LastSession", "Recursive")
+    IniWrite(g.dpiFolderCheck.Value, s, "LastSession", "DpiFolder")
     IniWrite(g.patternEdit.Value, s, "LastSession", "Pattern")
     g.GetPos(&wx, &wy, &ww, &wh)
     IniWrite(wx, s, "Window", "X")
@@ -439,10 +452,14 @@ RestoreSession(g) {
         fmt := IniRead(s, "LastSession", "Format")
         g.formatDropdown.Choose(GetFormatIndex(fmt))
     }
-    try g.inputEdit.Value := IniRead(s, "LastSession", "InputPath")
+    try g.dpiFolderCheck.Value := IniRead(s, "LastSession", "DpiFolder")
     try g.outputEdit.Value := IniRead(s, "LastSession", "OutputPath")
+    try g.inputEdit.Value := IniRead(s, "LastSession", "InputPath")
     try g.recursiveCheck.Value := IniRead(s, "LastSession", "Recursive")
     try g.patternEdit.Value := IniRead(s, "LastSession", "Pattern")
+
+    ; sync output path with checkbox
+    UpdateOutputPath(g)
     try {
         wx := IniRead(s, "Window", "X", "")
         wy := IniRead(s, "Window", "Y", "")
@@ -485,17 +502,68 @@ UpdateFileCount(g) {
     g.fileCount.Text := count " image" (count = 1 ? "" : "s") " found"
 }
 
-UpdateOutputPath(g) {
-    inputPath := Trim(g.inputEdit.Value)
-    dpiVal := "DPI_" Trim(g.dpiEdit.Value)
-    if dpiVal = "DPI_"
-        dpiVal := "DPI_150"
-    if inputPath != ""
-        g.outputEdit.Value := inputPath "\" dpiVal
+UpdateOutputPath(g, forceBase := false) {
+    current := Trim(g.outputEdit.Value)
+    ; strip DPI suffix
+    base := RegExReplace(current, "\\DPI_\d+$", "")
+    ; only auto-set base when forced (initial input select)
+    if forceBase || base = "" {
+        inputPath := Trim(g.inputEdit.Value)
+        if inputPath = ""
+            return
+        base := inputPath
+    }
+    dpiVal := Trim(g.dpiEdit.Value)
+    g.outputEdit.Value := g.dpiFolderCheck.Value && dpiVal != "" ? base "\DPI_" dpiVal : base
+}
+OnOutputChange(ctrl, *) {
+    static busy := false
+    if busy
+        return
+    busy := true
+    g := ctrl.Gui
+    if !g.dpiFolderCheck.Value {
+        busy := false
+        return
+    }
+    current := Trim(g.outputEdit.Value)
+    dpiVal := Trim(g.dpiEdit.Value)
+    if dpiVal != "" && !RegExMatch(current, "\\DPI_\d+$")
+        g.outputEdit.Value := RTrim(current, "\") "\DPI_" dpiVal
+    busy := false
 }
 
 SetQuickDpi(g, value, *) {
     g.dpiEdit.Value := value
+    UpdateOutputPath(g)
+}
+
+ResetToSource(g, *) {
+    inputFolder := RTrim(Trim(g.inputEdit.Value), "\")
+    if !DirExist(inputFolder) {
+        MsgBox("No input folder selected.")
+        return
+    }
+    extList := ["png", "jpg", "jpeg", "bmp", "webp", "tif"]
+    firstFile := ""
+    for ext in extList {
+        Loop Files inputFolder "\*." ext, "F" {
+            firstFile := A_LoopFileFullPath
+            break 2
+        }
+    }
+    if firstFile = "" {
+        MsgBox("No images found in input folder.")
+        return
+    }
+    g.scaleEdit.Value := 100
+    try {
+        img := ComObject("WIA.ImageFile")
+        img.LoadFile(firstFile)
+        g.dpiEdit.Value := Round(img.HorizontalResolution)
+        img := ""
+    } catch
+        g.dpiEdit.Value := 72
     UpdateOutputPath(g)
 }
 
@@ -525,24 +593,73 @@ GuiResize(g, GuiObj, MinMax, Width, Height) {
     g.btnOpenOutput.Move(sx + half + 10,, half)
 }
 
-SelectInput(g) {
-    path := DirSelect("*", 2, "Select Input Folder")
-    if (path != "") {
-        g.inputEdit.Value := path
-        UpdateOutputPath(g)
-        UpdateFileCount(g)
+IsValidFile(path) {
+    SplitPath(path, , , &ext)
+    ext := "." StrLower(ext)
+    static valid := ["png", "jpg", "jpeg", "bmp", "tif", "tiff", "webp", "gif", "mp4"]
+    for v in valid {
+        if ext = "." v
+            return true
     }
+    return false
+}
+
+
+SelectInput(g) {
+    dir := FileSelect("D", , "Select Input Folder")
+    if dir = ""
+        return
+    files := CollectMediaFromFolder(dir)
+    if files.Length = 0
+        return
+    g.inputEdit.Value := dir
+    UpdateOutputPath(g, true)
+    UpdateFileCount(g)
 }
 
 SelectOutput(g) {
-    path := DirSelect("*", 2, "Select Output Folder")
-    if (path != "")
-        g.outputEdit.Value := path
+    dir := FileSelect("D", , "Select Output Folder")
+    if dir = ""
+        return
+    g.outputEdit.Value := dir
+}
+
+CollectMediaFromFolder(dir) {
+    files := []
+    Loop Files, dir "\*.*", "F" {
+        if IsValidFile(A_LoopFileFullPath)
+            files.Push(A_LoopFileFullPath)
+    }
+    return SortPathsNaturally(files)
+}
+
+SortPathsNaturally(paths) {
+    sorted := paths.Clone()
+    Loop sorted.Length {
+        swapped := false
+        Loop sorted.Length - 1 {
+            if StrCompare(sorted[A_Index], sorted[A_Index + 1]) > 0 {
+                tmp := sorted[A_Index]
+                sorted[A_Index] := sorted[A_Index + 1]
+                sorted[A_Index + 1] := tmp
+                swapped := true
+            }
+        }
+        if !swapped
+            break
+    }
+    return sorted
 }
 
 StartBatch(g) {
-    inputFolder := Trim(g.inputEdit.Value)
-    outputFolder := Trim(g.outputEdit.Value)
+    inputFolder := RTrim(Trim(g.inputEdit.Value), "\")
+    outputFolder := RTrim(Trim(g.outputEdit.Value), "\")
+    ; ensure DPI suffix if checkbox is checked
+    if g.dpiFolderCheck.Value {
+        dpiSuffix := "\DPI_" Trim(g.dpiEdit.Value)
+        if !RegExMatch(outputFolder, "\\DPI_\d+$")
+            outputFolder .= dpiSuffix
+    }
     scale := Integer(g.scaleEdit.Value)
     dpi := Integer(g.dpiEdit.Value)
     jpegQuality := g.jpegQuality.Value
@@ -597,7 +714,8 @@ StartBatch(g) {
                 outputPath := filePath
             } else {
                 relative := SubStr(dir, StrLen(inputFolder) + 1)
-                outDir := outputFolder relative
+                relative := Trim(relative, "\")
+                outDir := relative != "" ? outputFolder "\" relative : outputFolder
                 if !DirExist(outDir)
                     DirCreate(outDir)
                 outputPath := outDir "\" fileName
