@@ -186,7 +186,7 @@ CreateGUI() {
 
     g.dpiFolderCheck := g.AddCheckBox(
         "x+18 yp Checked " labelColor,
-        "DPI Folder"
+        "Make Folder"
     )
 
     g.lockCheck := g.AddCheckBox(
