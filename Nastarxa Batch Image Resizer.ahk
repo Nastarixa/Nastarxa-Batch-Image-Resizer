@@ -189,6 +189,11 @@ CreateGUI() {
         "DPI Folder"
     )
 
+    g.lockCheck := g.AddCheckBox(
+        "x+8 yp " labelColor,
+        "Lock Size"
+    )
+
     ; =========================================================
     ; PRESETS
     ; =========================================================
@@ -254,7 +259,13 @@ CreateGUI() {
 
     g.inputEdit.OnEvent("Change", (*) => UpdateFileCount(g))
 
-    g.dpiEdit.OnEvent("Change", (*) => UpdateOutputPath(g))
+    g._lockBusy := 0
+    g._lockRatio := 0
+    g._lockSuspended := 0
+
+    g.lockCheck.OnEvent("Click", LockClick.Bind(g))
+    g.dpiEdit.OnEvent("Change", OnDpiChanged.Bind(g))
+    g.scaleEdit.OnEvent("Change", OnScaleChanged.Bind(g))
 
     g.recursiveCheck.OnEvent("Click", (*) => UpdateFileCount(g))
 
@@ -322,6 +333,8 @@ LoadPresetToGui(g) {
     dpi := IniRead(_PRESETS_FILE, name, "Dpi")
     quality := IniRead(_PRESETS_FILE, name, "Quality")
     format := IniRead(_PRESETS_FILE, name, "Format")
+    savedLock := g.lockCheck.Value
+    g._lockSuspended := 1
     if scale != ""
         g.scaleEdit.Value := scale
     if dpi != ""
@@ -330,6 +343,9 @@ LoadPresetToGui(g) {
         g.jpegQuality.Value := quality
     if format != ""
         g.formatDropdown.Choose(GetFormatIndex(format))
+    g._lockSuspended := 0
+    if savedLock
+        LockClick(g)
     UpdateOutputPath(g)
     g.status.Text := "Loaded: " name
 }
@@ -350,8 +366,10 @@ SavePresetFromGui(g) {
             }
         }
     }
-    IniWrite(Integer(g.scaleEdit.Value), _PRESETS_FILE, name, "Scale")
-    IniWrite(Integer(g.dpiEdit.Value), _PRESETS_FILE, name, "Dpi")
+    sv := Trim(g.scaleEdit.Value)
+    IniWrite(sv != "" ? Integer(sv) : 100, _PRESETS_FILE, name, "Scale")
+    dv := Trim(g.dpiEdit.Value)
+    IniWrite(dv != "" ? Integer(dv) : 150, _PRESETS_FILE, name, "Dpi")
     IniWrite(g.jpegQuality.Value, _PRESETS_FILE, name, "Quality")
     IniWrite(g.formatDropdown.Text, _PRESETS_FILE, name, "Format")
     ReloadPresetsDropdown(g)
@@ -433,6 +451,7 @@ SaveSession(g) {
     IniWrite(g.outputEdit.Value, s, "LastSession", "OutputPath")
     IniWrite(g.recursiveCheck.Value, s, "LastSession", "Recursive")
     IniWrite(g.dpiFolderCheck.Value, s, "LastSession", "DpiFolder")
+    IniWrite(g.lockCheck.Value, s, "LastSession", "LockCheck")
     IniWrite(g.patternEdit.Value, s, "LastSession", "Pattern")
     g.GetPos(&wx, &wy, &ww, &wh)
     IniWrite(wx, s, "Window", "X")
@@ -445,6 +464,7 @@ RestoreSession(g) {
     s := _SETTINGS_FILE
     if !FileExist(s)
         return
+    g._lockSuspended := 1
     try g.scaleEdit.Value := IniRead(s, "LastSession", "Scale")
     try g.dpiEdit.Value := IniRead(s, "LastSession", "Dpi")
     try g.jpegQuality.Value := IniRead(s, "LastSession", "Quality")
@@ -457,6 +477,11 @@ RestoreSession(g) {
     try g.inputEdit.Value := IniRead(s, "LastSession", "InputPath")
     try g.recursiveCheck.Value := IniRead(s, "LastSession", "Recursive")
     try g.patternEdit.Value := IniRead(s, "LastSession", "Pattern")
+    g._lockSuspended := 0
+
+    try g.lockCheck.Value := IniRead(s, "LastSession", "LockCheck", "0")
+    if g.lockCheck.Value
+        LockClick(g)
 
     ; sync output path with checkbox
     UpdateOutputPath(g)
@@ -502,6 +527,56 @@ UpdateFileCount(g) {
     g.fileCount.Text := count " image" (count = 1 ? "" : "s") " found"
 }
 
+LockClick(g, *) {
+    scale := Trim(g.scaleEdit.Value)
+    dpi := Trim(g.dpiEdit.Value)
+    g._lockRatio := g.lockCheck.Value && scale != "" && dpi != ""
+        ? Max(Integer(scale), 1) / Max(Integer(dpi), 1)
+        : 0
+}
+
+SetQuickDpi(g, value, *) {
+    if g.lockCheck.Value && g._lockRatio {
+        g._lockBusy := 1
+        g.scaleEdit.Value := Round(g._lockRatio * value)
+        g.scaleEdit.Redraw()
+        g._lockBusy := 0
+    }
+    g.dpiEdit.Value := value
+    UpdateOutputPath(g)
+}
+
+OnDpiChanged(g, *) {
+    if g._lockSuspended
+        return
+    UpdateOutputPath(g)
+    if g.lockCheck.Value && !g._lockBusy && g._lockRatio {
+        g._lockBusy := 1
+        dpi := Trim(g.dpiEdit.Value)
+        if dpi != "" {
+            dpi := Max(Integer(dpi), 1)
+            g.scaleEdit.Value := Round(g._lockRatio * dpi)
+            g.scaleEdit.Redraw()
+        }
+        g._lockBusy := 0
+    }
+}
+
+OnScaleChanged(g, *) {
+    if g._lockSuspended
+        return
+    if g.lockCheck.Value && !g._lockBusy && g._lockRatio {
+        g._lockBusy := 1
+        scale := Trim(g.scaleEdit.Value)
+        if scale != "" {
+            scale := Max(Integer(scale), 1)
+            g.dpiEdit.Value := Round(scale / g._lockRatio)
+            g.dpiEdit.Redraw()
+        }
+        g._lockBusy := 0
+    }
+}
+
 UpdateOutputPath(g, forceBase := false) {
     current := Trim(g.outputEdit.Value)
     ; strip DPI suffix
@@ -531,11 +606,6 @@ OnOutputChange(ctrl, *) {
     if dpiVal != "" && !RegExMatch(current, "\\DPI_\d+$")
         g.outputEdit.Value := RTrim(current, "\") "\DPI_" dpiVal
     busy := false
-}
-
-SetQuickDpi(g, value, *) {
-    g.dpiEdit.Value := value
-    UpdateOutputPath(g)
 }
 
 ResetToSource(g, *) {
@@ -660,8 +730,10 @@ StartBatch(g) {
         if !RegExMatch(outputFolder, "\\DPI_\d+$")
             outputFolder .= dpiSuffix
     }
-    scale := Integer(g.scaleEdit.Value)
-    dpi := Integer(g.dpiEdit.Value)
+    sv := Trim(g.scaleEdit.Value)
+    scale := sv != "" ? Max(Integer(sv), 1) : 100
+    dv := Trim(g.dpiEdit.Value)
+    dpi := dv != "" ? Max(Integer(dv), 1) : 150
     jpegQuality := g.jpegQuality.Value
     formatChoice := g.formatDropdown.Text
     formatExt := GetFormatExt(formatChoice)
