@@ -97,10 +97,14 @@ CreateGUI() {
 
     g.scaleEdit := g.AddEdit(
         "x+6 yp-2 w52 h24 Number Center BackgroundFFFFFF c000000",
-        "75"
+        "100"
     )
 
-    g.AddText("x+12 yp+3 " labelColor, "DPI")
+    g.lockIndicator := g.AddText("x+6 yp+1 w20 h20 Center +0x200 c4CAF50", "🔗")
+    g.lockIndicator.SetFont("s10", "Segoe UI")
+    g.lockIndicator.OnEvent("Click", (*) => ToggleLock(g))
+
+    g.AddText("x+4 yp+2 " labelColor, "DPI")
 
     g.dpiEdit := g.AddEdit(
         "x+6 yp-2 w58 h24 Number Center BackgroundFFFFFF c000000",
@@ -189,11 +193,6 @@ CreateGUI() {
         "Make Folder"
     )
 
-    g.lockCheck := g.AddCheckBox(
-        "x+8 yp " labelColor,
-        "Lock Size"
-    )
-
     ; =========================================================
     ; PRESETS
     ; =========================================================
@@ -204,7 +203,6 @@ CreateGUI() {
         "xm y+4 w250",
         GetPresetNames()
     )
-    try g.presetsDropdown.Choose("Anime Keyframe")
 
     g.btnSavePreset := g.AddButton(
         "x+6 yp-1 w56 h24",
@@ -259,11 +257,11 @@ CreateGUI() {
 
     g.inputEdit.OnEvent("Change", (*) => UpdateFileCount(g))
 
+    g.lockOn := 1
     g._lockBusy := 0
     g._lockRatio := 0
     g._lockSuspended := 0
 
-    g.lockCheck.OnEvent("Click", LockClick.Bind(g))
     g.dpiEdit.OnEvent("Change", OnDpiChanged.Bind(g))
     g.scaleEdit.OnEvent("Change", OnScaleChanged.Bind(g))
 
@@ -308,32 +306,32 @@ CreateGUI() {
         RestoreSession(g)
 
     if !g.HasProp("_restored") || !g._restored {
-
         EnsureAnimeKeyframeExists()
-
-        try g.presetsDropdown.Choose("Anime Keyframe")
-
-        LoadPresetToGui(g)
     }
 
     UpdateFileCount(g)
+
+    SyncLock(g)
 }
 GetPresetNames() {
-    if !FileExist(_PRESETS_FILE)
-        return []
-    sections := IniRead(_PRESETS_FILE)
-    return StrSplit(sections, "`n")
+    names := ["No Preset"]
+    if FileExist(_PRESETS_FILE) {
+        sections := IniRead(_PRESETS_FILE)
+        for s in StrSplit(sections, "`n")
+            names.Push(s)
+    }
+    return names
 }
 
 LoadPresetToGui(g) {
     name := g.presetsDropdown.Text
-    if name = ""
+    if name = "" || name = "No Preset"
         return
     scale := IniRead(_PRESETS_FILE, name, "Scale")
     dpi := IniRead(_PRESETS_FILE, name, "Dpi")
     quality := IniRead(_PRESETS_FILE, name, "Quality")
     format := IniRead(_PRESETS_FILE, name, "Format")
-    savedLock := g.lockCheck.Value
+    savedLock := g.lockOn
     g._lockSuspended := 1
     if scale != ""
         g.scaleEdit.Value := scale
@@ -345,7 +343,7 @@ LoadPresetToGui(g) {
         g.formatDropdown.Choose(GetFormatIndex(format))
     g._lockSuspended := 0
     if savedLock
-        LockClick(g)
+        SyncLock(g)
     UpdateOutputPath(g)
     g.status.Text := "Loaded: " name
 }
@@ -355,6 +353,10 @@ SavePresetFromGui(g) {
     if ib.Result = "Cancel" || Trim(ib.Value) = ""
         return
     name := Trim(ib.Value)
+    if name = "No Preset" {
+        g.status.Text := "Cannot overwrite 'No Preset'."
+        return
+    }
     if FileExist(_PRESETS_FILE) {
         sections := IniRead(_PRESETS_FILE)
         for section in StrSplit(sections, "`n") {
@@ -379,7 +381,7 @@ SavePresetFromGui(g) {
 
 DeletePresetFromGui(g) {
     name := g.presetsDropdown.Text
-    if name = "" {
+    if name = "" || name = "No Preset" {
         g.status.Text := "No preset selected to delete."
         return
     }
@@ -427,10 +429,15 @@ OnDropFiles(g, wParam, lParam, msg, hwnd) {
     DllCall("shell32\DragQueryFileW", "Ptr", wParam, "UInt", 0, "Ptr", buf, "UInt", length)
     path := StrGet(buf)
     DllCall("shell32\DragFinish", "Ptr", wParam)
-    if DirExist(path)
+    if DirExist(path) {
         g.inputEdit.Value := path
-    else
-        SplitPath(path, , &fileDir), g.inputEdit.Value := fileDir
+        SyncFromSource(g)
+    }
+    else {
+        SplitPath(path, , &fileDir)
+        g.inputEdit.Value := fileDir
+        SyncFromSource(g)
+    }
     UpdateOutputPath(g, true)
     UpdateFileCount(g)
     return 1
@@ -451,7 +458,7 @@ SaveSession(g) {
     IniWrite(g.outputEdit.Value, s, "LastSession", "OutputPath")
     IniWrite(g.recursiveCheck.Value, s, "LastSession", "Recursive")
     IniWrite(g.dpiFolderCheck.Value, s, "LastSession", "DpiFolder")
-    IniWrite(g.lockCheck.Value, s, "LastSession", "LockCheck")
+    IniWrite(g.lockOn, s, "LastSession", "LockCheck")
     IniWrite(g.patternEdit.Value, s, "LastSession", "Pattern")
     g.GetPos(&wx, &wy, &ww, &wh)
     IniWrite(wx, s, "Window", "X")
@@ -479,9 +486,9 @@ RestoreSession(g) {
     try g.patternEdit.Value := IniRead(s, "LastSession", "Pattern")
     g._lockSuspended := 0
 
-    try g.lockCheck.Value := IniRead(s, "LastSession", "LockCheck", "0")
-    if g.lockCheck.Value
-        LockClick(g)
+    try g.lockOn := IniRead(s, "LastSession", "LockCheck", "0")
+    if g.lockOn
+        SyncLock(g)
 
     ; sync output path with checkbox
     UpdateOutputPath(g)
@@ -527,16 +534,23 @@ UpdateFileCount(g) {
     g.fileCount.Text := count " image" (count = 1 ? "" : "s") " found"
 }
 
-LockClick(g, *) {
+ToggleLock(g) {
+    g.lockOn := !g.lockOn
+    SyncLock(g)
+}
+
+SyncLock(g) {
     scale := Trim(g.scaleEdit.Value)
     dpi := Trim(g.dpiEdit.Value)
-    g._lockRatio := g.lockCheck.Value && scale != "" && dpi != ""
+    g._lockRatio := g.lockOn && scale != "" && dpi != ""
         ? Max(Integer(scale), 1) / Max(Integer(dpi), 1)
         : 0
+    g.lockIndicator.Text := g.lockOn ? "🔗" : "⊘"
+    g.lockIndicator.Opt(g.lockOn ? "c4CAF50" : "c888888")
 }
 
 SetQuickDpi(g, value, *) {
-    if g.lockCheck.Value && g._lockRatio {
+    if g.lockOn && g._lockRatio {
         g._lockBusy := 1
         g.scaleEdit.Value := Round(g._lockRatio * value)
         g.scaleEdit.Redraw()
@@ -550,7 +564,7 @@ OnDpiChanged(g, *) {
     if g._lockSuspended
         return
     UpdateOutputPath(g)
-    if g.lockCheck.Value && !g._lockBusy && g._lockRatio {
+    if g.lockOn && !g._lockBusy && g._lockRatio {
         g._lockBusy := 1
         dpi := Trim(g.dpiEdit.Value)
         if dpi != "" {
@@ -565,7 +579,7 @@ OnDpiChanged(g, *) {
 OnScaleChanged(g, *) {
     if g._lockSuspended
         return
-    if g.lockCheck.Value && !g._lockBusy && g._lockRatio {
+    if g.lockOn && !g._lockBusy && g._lockRatio {
         g._lockBusy := 1
         scale := Trim(g.scaleEdit.Value)
         if scale != "" {
@@ -683,6 +697,7 @@ SelectInput(g) {
     if files.Length = 0
         return
     g.inputEdit.Value := dir
+    SyncFromSource(g)
     UpdateOutputPath(g, true)
     UpdateFileCount(g)
 }
@@ -692,6 +707,35 @@ SelectOutput(g) {
     if dir = ""
         return
     g.outputEdit.Value := dir
+}
+
+SyncFromSource(g) {
+    inputFolder := RTrim(Trim(g.inputEdit.Value), "\")
+    if !DirExist(inputFolder)
+        return
+    static valid := ["png", "jpg", "jpeg", "bmp", "tif", "tiff", "webp"]
+    firstFile := ""
+    for v in valid {
+        Loop Files inputFolder "\*." v, "F" {
+            firstFile := A_LoopFileFullPath
+            break 2
+        }
+    }
+    if firstFile = ""
+        return
+    try {
+        img := ComObject("WIA.ImageFile")
+        img.LoadFile(firstFile)
+        dpi := Round(img.HorizontalResolution)
+        img := ""
+    } catch
+        dpi := 72
+    g._lockBusy := 1
+    g.scaleEdit.Value := 100
+    g.dpiEdit.Value := dpi
+    g._lockBusy := 0
+    if g.lockOn
+        SyncLock(g)
 }
 
 CollectMediaFromFolder(dir) {
