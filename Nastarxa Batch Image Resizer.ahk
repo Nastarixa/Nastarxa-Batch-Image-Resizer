@@ -307,6 +307,8 @@ CreateGUI() {
 
     if !g.HasProp("_restored") || !g._restored {
         EnsureAnimeKeyframeExists()
+        ReloadPresetsDropdown(g)
+        g.presetsDropdown.Choose("No Preset")
     }
 
     UpdateFileCount(g)
@@ -545,8 +547,7 @@ SyncLock(g) {
     g._lockRatio := g.lockOn && scale != "" && dpi != ""
         ? Max(Integer(scale), 1) / Max(Integer(dpi), 1)
         : 0
-    g.lockIndicator.Text := g.lockOn ? "🔗" : "⊘"
-    g.lockIndicator.Opt(g.lockOn ? "c4CAF50" : "c888888")
+    g.lockIndicator.Opt(g.lockOn ? "c4CAF50" : "c666666")
 }
 
 SetQuickDpi(g, value, *) {
