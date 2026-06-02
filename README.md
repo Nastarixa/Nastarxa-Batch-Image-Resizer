@@ -9,6 +9,12 @@ No external tools required — everything runs using built-in Windows `System.Dr
 
 ---
 
+## 🖼 Image Preview
+
+![1](docs/images/1.png)
+
+---
+
 ## ✨ Features
 
 ### 🖼 Batch Processing
@@ -69,12 +75,6 @@ Save and reuse your favorite settings:
 - Session auto-save
 - Failed file reporting
 - Resizable interface
-
----
-
-## 🖼 Image Preview
-
-![1](docs/images/1.png)
 
 ---
 
