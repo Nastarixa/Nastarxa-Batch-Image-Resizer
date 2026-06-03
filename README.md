@@ -1,6 +1,8 @@
 # 🍍 Nastarxa Batch Image Resizer
 
-A lightweight batch image resizer for Windows built with AutoHotkey v2 and PowerShell/.NET.
+> 🖼️ Fast batch image resizing tool for Windows.
+
+Resize and export large image collections quickly using built-in Windows technologies with no external dependencies.
 
 No external tools required — everything runs using built-in Windows `System.Drawing`.
 
