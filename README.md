@@ -20,18 +20,28 @@ No external tools required — everything runs using built-in Windows `System.Dr
 ## ✨ Features
 
 ### 🖼 Batch Processing
-- Resize multiple images at once using percentage scaling
+- Resize multiple images at once using percentage scaling or fixed pixel dimensions
 - Supports large folders and recursive subfolders
 - Parallel processing for faster conversion
 
-### 📏 DPI & Size Conversion
-- Convert image DPI (72–600+)
-- Quick DPI presets:
-  - 72
-  - 96
-  - 150
-  - 300
-  - 600
+### 📏 DPI & Pixel Size Modes
+
+**DPI Mode** (default): resize by percentage scale and set output DPI.
+- Set Scale % and target DPI
+- Quick DPI presets: 72 / 96 / 150 / 300 / 600
+- Lock icon keeps the scale/DPI ratio consistent
+
+**Pixel Size Mode**: resize all images to fixed pixel dimensions.
+- Check **Pixel Size** to switch modes
+- Enter target **Width** and **Height** in pixels
+- Lock icon (🔗) keeps width/height ratio consistent
+- **Secure** dropdown controls which dimension is locked:
+  - **Auto** — both editable (lock toggles freely)
+  - **Secure Height** — Height is auto-calculated from Width + Aspect Ratio
+  - **Secure Width** — Width is auto-calculated from Height + Aspect Ratio
+- **Aspect Ratio** field forces a custom W:H ratio (e.g., 16:9, 4:3, 1:1)
+  - Shows **"Original"** when using each image's native aspect ratio
+- Output folder auto-names as `W{width}_H{height}` when "Make Folder" is checked
 
 ### 🎨 Format Support
 Convert images to:
@@ -62,8 +72,8 @@ thumb_{name}{ext}
 img_{counter}{ext}
 ```
 
-### 💾 Presets
-Save and reuse your favorite settings:
+### 💾 Presets (DPI Mode only)
+Save and reuse your favorite DPI mode settings:
 - Thumbnail
 - Web Standard
 - Print High
@@ -72,11 +82,12 @@ Save and reuse your favorite settings:
 
 ### 🖱 Quality of Life
 - Drag & drop folder support
-- File count preview
+- File count preview (click to view full file list)
 - Flat dark progress bar
 - Session auto-save
 - Failed file reporting
 - Resizable interface
+- Built-in **Guide** window
 
 ---
 
@@ -101,12 +112,13 @@ Nastarxa Batch Image Resizer.ahk
    - Output folder
 
 3. Configure:
-   - Scale %
-   - DPI
+   - **DPI Mode**: Scale % + DPI (default)
+   - **Pixel Size Mode**: check "Pixel Size" for fixed-size resizing
+   - **Secure Mode**: choose Auto / Secure Height / Secure Width
    - Output format
    - JPEG quality
 
-4. Click **Start**
+4. Click **Start** (or **Guide** for help)
 
 Processed images will appear in the output folder.
 

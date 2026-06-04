@@ -46,7 +46,7 @@ CreateDefaultPresets() {
 
 CreateGUI() {
 
-    g := Gui("+Resize +MinSize360x360 +E0x10", "Nastarxa Batch Image Resizer")
+    g := Gui("+MinSize360x360 +E0x10", "Nastarxa Batch Image Resizer")
 
     g.BackColor := "2B2D31"
     g.SetFont("s9", "Segoe UI")
@@ -93,25 +93,17 @@ CreateGUI() {
     ; SETTINGS
     ; =========================================================
 
-    g.AddText("xm y+" rowGap " " labelColor, "Scale")
+    ; =========================================================
+    ; MODE TOGGLE + FORMAT
+    ; =========================================================
 
-    g.scaleEdit := g.AddEdit(
-        "x+6 yp-2 w52 h24 Number Center BackgroundFFFFFF c000000",
-        "100"
+    g.usePxCheck := g.AddCheckBox(
+        "xm y+" rowGap " " labelColor " vUsePxMode",
+        "Pixel Size"
     )
+    g.usePxCheck.OnEvent("Click", (*) => TogglePxMode(g))
 
-    g.lockIndicator := g.AddText("x+6 yp+1 w20 h20 Center +0x200 c4CAF50", "🔗")
-    g.lockIndicator.SetFont("s10", "Segoe UI")
-    g.lockIndicator.OnEvent("Click", (*) => ToggleLock(g))
-
-    g.AddText("x+4 yp+2 " labelColor, "DPI")
-
-    g.dpiEdit := g.AddEdit(
-        "x+6 yp-2 w58 h24 Number Center BackgroundFFFFFF c000000",
-        "150"
-    )
-
-    g.AddText("x+12 yp+3 " labelColor, "Format")
+    g.AddText("x+24 yp+3 " labelColor, "Format")
 
     g.formatDropdown := g.AddDropDownList(
         "x+6 yp-2 w120",
@@ -119,14 +111,37 @@ CreateGUI() {
     )
 
     ; =========================================================
+    ; SCALE / DPI
+    ; =========================================================
+
+    g.scaleLabel := g.AddText("xm y+" rowGap " " labelColor " vScaleLabel", "Scale")
+
+    g.scaleEdit := g.AddEdit(
+        "x+6 yp-2 w52 h24 Number Center BackgroundFFFFFF c000000 vScaleEdit",
+        "100"
+    )
+
+    g.lockIndicator := g.AddText("x+6 yp+1 w20 h20 Center +0x200 c4CAF50 vScaleLock", "🔗")
+    g.lockIndicator.SetFont("s10", "Segoe UI")
+    g.lockIndicator.OnEvent("Click", (*) => ToggleLock(g))
+
+    g.dpiLabel := g.AddText("x+4 yp+2 " labelColor " vDpiLabel", "DPI")
+
+    g.dpiEdit := g.AddEdit(
+        "x+6 yp-2 w58 h24 Number Center BackgroundFFFFFF c000000 vDpiEdit",
+        "150"
+    )
+
+    ; =========================================================
     ; QUICK DPI
     ; =========================================================
 
-    g.AddText("xm y+" rowGap " " labelColor, "Quick DPI")
+    g.quickDpiLabel := g.AddText("xm y+" rowGap " " labelColor " vQuickDpiLabel", "Quick DPI")
 
-    dpiButtons := [72, 96, 150, 300, 600]
+    dpiButtonVals := [72, 96, 150, 300, 600]
+    g._dpiButtons := []
 
-    for dpi in dpiButtons {
+    for dpi in dpiButtonVals {
 
         btn := g.AddButton(
             (A_Index = 1 ? "x+8 yp-1 " : "x+4 yp ")
@@ -135,6 +150,7 @@ CreateGUI() {
         )
 
         btn.OnEvent("Click", SetQuickDpi.Bind(g, dpi))
+        g._dpiButtons.Push(btn)
     }
 
     g.btnReset := g.AddButton(
@@ -142,6 +158,96 @@ CreateGUI() {
         "Reset"
     )
     g.btnReset.OnEvent("Click", ResetToSource.Bind(g))
+
+    ; =========================================================
+    ; WIDTH / HEIGHT
+    ; =========================================================
+
+    g.pxWidthLabel := g.AddText("xm y+" rowGap " " labelColor " vPxWidthLabel", "Width")
+    g.pxWidthLabel.Enabled := 0
+
+    g.pxWidth := g.AddEdit(
+        "x+6 yp-2 w64 h24 Number Center BackgroundFFFFFF c000000 vPxWidth",
+        "1920"
+    )
+    g.pxWidth.Enabled := 0
+    g.pxWidth.OnEvent("Change", OnPxWidthChange.Bind(g))
+
+    g.pxLockIndicator := g.AddText("x+6 yp+1 w20 h20 Center +0x200 c4CAF50 vPxLock", "🔗")
+    g.pxLockIndicator.SetFont("s10", "Segoe UI")
+    g.pxLockIndicator.Enabled := 0
+    g.pxLockIndicator.OnEvent("Click", (*) => TogglePxLock(g))
+
+    g.pxHeightLabel := g.AddText("x+4 yp+2 " labelColor " vPxHeightLabel", "Height")
+    g.pxHeightLabel.Enabled := 0
+
+    g.pxHeight := g.AddEdit(
+        "x+6 yp-2 w80 h28 Number Center BackgroundFFFFFF c000000 vPxHeight",
+        "1080"
+    )
+    g.pxHeight.Enabled := 0
+    g.pxHeight.OnEvent("Change", OnPxHeightChange.Bind(g))
+
+    ; =========================================================
+    ; ASPECT RATIO
+    ; =========================================================
+
+    g.pxRatioLabel := g.AddText("xm y+" rowGap " " labelColor " vPxRatioLabel", "Aspect Ratio")
+    g.pxRatioLabel.Enabled := 0
+
+    g.pxRatio := g.AddEdit(
+        "x+6 yp-2 w72 h24 Center BackgroundFFFFFF c000000 vPxRatio",
+        "1:1"
+    )
+    g.pxRatio.Enabled := 0
+    g.pxRatio.ToolTip := "Enter W:H ratio (e.g. 16:9), or leave empty for original"
+    g.pxRatio.OnEvent("Change", (*) => ApplyRatioFromInput(g))
+
+    g.pxRatioOrig := g.AddButton("x+4 yp w42 h22 vPxRatioOrig", "Orig")
+    g.pxRatioOrig.Enabled := 0
+    g.pxRatioOrig.OnEvent("Click", (*) => (
+        g.pxRatio.Value := "Original",
+        ApplyRatioFromInput(g)
+    ))
+
+    g.pxRatio16_9 := g.AddButton("x+4 yp w42 h22 vPxRatio16_9", "16:9")
+    g.pxRatio16_9.Enabled := 0
+    g.pxRatio16_9.OnEvent("Click", (*) => (
+        g.pxRatio.Value := "16:9",
+        ApplyRatioFromInput(g)
+    ))
+
+    g.pxRatio4_3 := g.AddButton("x+4 yp w42 h22 vPxRatio4_3", "4:3")
+    g.pxRatio4_3.Enabled := 0
+    g.pxRatio4_3.OnEvent("Click", (*) => (
+        g.pxRatio.Value := "4:3",
+        ApplyRatioFromInput(g)
+    ))
+
+    g.pxRatio1_1 := g.AddButton("x+4 yp w42 h22 vPxRatio1_1", "1:1")
+    g.pxRatio1_1.Enabled := 0
+    g.pxRatio1_1.OnEvent("Click", (*) => (
+        g.pxRatio.Value := "1:1",
+        ApplyRatioFromInput(g)
+    ))
+
+    ; =========================================================
+    ; SECURE PIXEL MODE
+    ; =========================================================
+
+    g.pxSecureLabel := g.AddText("xm y+" rowGap " " labelColor " vPxSecureLabel", "Secure")
+    g.pxSecureLabel.Enabled := 0
+
+    g.pxSecureDropdown := g.AddDropDownList(
+        "x+6 yp-2 w130 vPxSecureMode Choose1",
+        ["Auto", "Secure Height", "Secure Width"]
+    )
+    g.pxSecureDropdown.Enabled := 0
+    g.pxSecureDropdown.OnEvent("Change", (*) => OnPxSecureChange(g))
+
+    g.pxResetBtn := g.AddButton("x+12 yp w52 h22 vPxResetBtn", "Reset")
+    g.pxResetBtn.Enabled := 0
+    g.pxResetBtn.OnEvent("Click", (*) => ResetPxToSource(g))
 
     ; =========================================================
     ; QUALITY
@@ -219,9 +325,12 @@ CreateGUI() {
     ; =========================================================
 
     g.fileCount := g.AddText(
-        "xm y+" rowGap " w378 c808080",
+        "xm y+" rowGap " w378 c808080 +0x100",
         "0 images found"
     )
+    g.fileCount.SetFont("s9 underline", "Segoe UI")
+    g.fileCount.ToolTip := "Click to view file list"
+    g.fileCount.OnEvent("Click", (*) => ShowFileList(g))
 
     ; Flat progress bar style
     g.progressBg := g.AddText(
@@ -242,14 +351,20 @@ CreateGUI() {
     ; =========================================================
 
     g.btnStart := g.AddButton(
-        "xm y+14 w184 h30",
+        "xm y+14 w124 h30",
         "Start"
     )
 
     g.btnOpenOutput := g.AddButton(
-        "x+10 yp w184 h30",
+        "x+10 yp w124 h30",
         "Open Output"
     )
+
+    g.btnGuide := g.AddButton(
+        "x+10 yp w124 h30",
+        "Guide"
+    )
+    g.btnGuide.OnEvent("Click", (*) => ShowGuide(g))
 
     ; =========================================================
     ; EVENTS
@@ -261,6 +376,8 @@ CreateGUI() {
     g._lockBusy := 0
     g._lockRatio := 0
     g._lockSuspended := 0
+    g.pxLockOn := 1
+    g._pxAspect := 1.0
 
     g.dpiEdit.OnEvent("Change", OnDpiChanged.Bind(g))
     g.scaleEdit.OnEvent("Change", OnScaleChanged.Bind(g))
@@ -300,7 +417,7 @@ CreateGUI() {
     ; SHOW
     ; =========================================================
 
-    g.Show("w420 h515 Center")
+    g.Show("w420 h670 Center")
 
     if FileExist(_SETTINGS_FILE)
         RestoreSession(g)
@@ -329,6 +446,10 @@ LoadPresetToGui(g) {
     name := g.presetsDropdown.Text
     if name = "" || name = "No Preset"
         return
+    if g.usePxCheck.Value {
+        g.status.Text := "Presets not available in Pixel Size mode."
+        return
+    }
     scale := IniRead(_PRESETS_FILE, name, "Scale")
     dpi := IniRead(_PRESETS_FILE, name, "Dpi")
     quality := IniRead(_PRESETS_FILE, name, "Quality")
@@ -462,6 +583,11 @@ SaveSession(g) {
     IniWrite(g.dpiFolderCheck.Value, s, "LastSession", "DpiFolder")
     IniWrite(g.lockOn, s, "LastSession", "LockCheck")
     IniWrite(g.patternEdit.Value, s, "LastSession", "Pattern")
+    IniWrite(g.usePxCheck.Value, s, "LastSession", "UsePxMode")
+    IniWrite(g.pxWidth.Value, s, "LastSession", "PxWidth")
+    IniWrite(g.pxHeight.Value, s, "LastSession", "PxHeight")
+    IniWrite(g.pxRatio.Value, s, "LastSession", "PxRatio")
+    IniWrite(g.pxSecureDropdown.Text, s, "LastSession", "PxSecureMode")
     g.GetPos(&wx, &wy, &ww, &wh)
     IniWrite(wx, s, "Window", "X")
     IniWrite(wy, s, "Window", "Y")
@@ -486,11 +612,20 @@ RestoreSession(g) {
     try g.inputEdit.Value := IniRead(s, "LastSession", "InputPath")
     try g.recursiveCheck.Value := IniRead(s, "LastSession", "Recursive")
     try g.patternEdit.Value := IniRead(s, "LastSession", "Pattern")
+    try g.pxWidth.Value := IniRead(s, "LastSession", "PxWidth")
+    try g.pxHeight.Value := IniRead(s, "LastSession", "PxHeight")
+    try g.pxRatio.Value := IniRead(s, "LastSession", "PxRatio")
+    try g.pxSecureDropdown.Value := IniRead(s, "LastSession", "PxSecureMode")
+    try g.usePxCheck.Value := IniRead(s, "LastSession", "UsePxMode")
     g._lockSuspended := 0
 
     try g.lockOn := IniRead(s, "LastSession", "LockCheck", "0")
     if g.lockOn
         SyncLock(g)
+
+    ; Apply PX mode visibility if saved state is PX
+    if g.usePxCheck.Value
+        TogglePxMode(g)
 
     ; sync output path with checkbox
     UpdateOutputPath(g)
@@ -592,10 +727,129 @@ OnScaleChanged(g, *) {
     }
 }
 
+TogglePxMode(g) {
+    isPx := g.usePxCheck.Value
+    for _, name in ["ScaleLabel", "ScaleEdit", "ScaleLock", "DpiLabel", "DpiEdit"
+        , "QuickDpiLabel"] {
+        ctrl := g[name]
+        if ctrl.HasProp("Enabled")
+            ctrl.Enabled := !isPx
+    }
+    for _, name in ["PxWidthLabel", "PxWidth", "PxLock", "PxHeightLabel", "PxHeight"
+        , "PxRatioLabel", "PxRatio", "PxRatioOrig", "PxRatio16_9", "PxRatio4_3", "PxRatio1_1"
+        , "PxSecureLabel", "PxSecureMode", "PxResetBtn"] {
+        ctrl := g[name]
+        if ctrl.HasProp("Enabled")
+            ctrl.Enabled := isPx
+    }
+    ; Quick DPI buttons and Reset
+    g.quickDpiLabel.Enabled := !isPx
+    for btn in g._dpiButtons
+        btn.Enabled := !isPx
+    g.btnReset.Enabled := !isPx
+    if isPx
+        OnPxSecureChange(g)
+    UpdateOutputPath(g)
+}
+
+TogglePxLock(g) {
+    if g.pxSecureDropdown.Text != "Auto"
+        return
+    g.pxLockOn := !g.pxLockOn
+    g.pxLockIndicator.Opt(g.pxLockOn ? "c4CAF50" : "c666666")
+}
+
+OnPxSecureChange(g) {
+    mode := g.pxSecureDropdown.Text
+    g.pxLockOn := 1
+    g.pxLockIndicator.Opt("c4CAF50")
+    if mode = "Secure Height" {
+        g.pxHeight.Enabled := 0
+        g.pxWidth.Enabled := 1
+        g.pxWidthLabel.Enabled := 1
+        g.pxHeightLabel.Enabled := 0
+        ; auto-calc height from current width
+        w := Integer(Trim(g.pxWidth.Value))
+        if w > 0
+            g.pxHeight.Value := Round(w / g._pxAspect)
+    } else if mode = "Secure Width" {
+        g.pxWidth.Enabled := 0
+        g.pxHeight.Enabled := 1
+        g.pxWidthLabel.Enabled := 0
+        g.pxHeightLabel.Enabled := 1
+        ; auto-calc width from current height
+        h := Integer(Trim(g.pxHeight.Value))
+        if h > 0
+            g.pxWidth.Value := Round(h * g._pxAspect)
+    } else {
+        ; Auto — both editable
+        g.pxWidth.Enabled := 1
+        g.pxHeight.Enabled := 1
+        g.pxWidthLabel.Enabled := 1
+        g.pxHeightLabel.Enabled := 1
+    }
+    UpdateOutputPath(g)
+}
+
+UpdatePxRatio(g) {
+    w := Integer(Trim(g.pxWidth.Value))
+    h := Integer(Trim(g.pxHeight.Value))
+    g._pxAspect := (w > 0 && h > 0) ? w / h : 1.0
+}
+
+ApplyRatioFromInput(g) {
+    ratioStr := Trim(g.pxRatio.Value)
+    if ratioStr = "Original"
+        ratioStr := ""
+    if ratioStr != "" && RegExMatch(ratioStr, "(\d+)\s*:\s*(\d+)", &m) {
+        aw := Integer(m[1])
+        ah := Integer(m[2])
+        if aw > 0 && ah > 0
+            g._pxAspect := aw / ah
+    } else {
+        ; empty or invalid — derive from current W/H
+        UpdatePxRatio(g)
+    }
+    UpdateOutputPath(g)
+}
+
+OnPxWidthChange(g, *) {
+    if !g.pxLockOn || !g.usePxCheck.Value
+        return
+    ; In Secure Width mode, width is locked (auto from height)
+    if g.pxSecureDropdown.Text = "Secure Width"
+        return
+    wVal := Trim(g.pxWidth.Value)
+    if wVal = "" || Integer(wVal) < 1
+        return
+    w := Integer(wVal)
+    if !g.HasOwnProp("_pxAspect") || g._pxAspect <= 0
+        UpdatePxRatio(g)
+    g.pxHeight.Value := Round(w / g._pxAspect)
+    UpdateOutputPath(g)
+}
+
+OnPxHeightChange(g, *) {
+    if !g.pxLockOn || !g.usePxCheck.Value
+        return
+    ; In Secure Height mode, height is locked (auto from width)
+    if g.pxSecureDropdown.Text = "Secure Height"
+        return
+    hVal := Trim(g.pxHeight.Value)
+    if hVal = "" || Integer(hVal) < 1
+        return
+    h := Integer(hVal)
+    if !g.HasOwnProp("_pxAspect") || g._pxAspect <= 0
+        UpdatePxRatio(g)
+    g.pxWidth.Value := Round(h * g._pxAspect)
+    UpdateOutputPath(g)
+}
+
 UpdateOutputPath(g, forceBase := false) {
     current := Trim(g.outputEdit.Value)
-    ; strip DPI suffix
+    ; strip DPI or PX suffix
     base := RegExReplace(current, "\\DPI_\d+$", "")
+    base := RegExReplace(base, "\\[WH]\d+(?:_H\d+)?$", "")
     ; only auto-set base when forced (initial input select)
     if forceBase || base = "" {
         inputPath := Trim(g.inputEdit.Value)
@@ -604,7 +858,26 @@ UpdateOutputPath(g, forceBase := false) {
         base := inputPath
     }
     dpiVal := Trim(g.dpiEdit.Value)
-    g.outputEdit.Value := g.dpiFolderCheck.Value && dpiVal != "" ? base "\DPI_" dpiVal : base
+    usePx := g.usePxCheck.Value
+    if g.dpiFolderCheck.Value {
+        if usePx {
+            wVal := Trim(g.pxWidth.Value)
+            hVal := Trim(g.pxHeight.Value)
+            if wVal != "" {
+                secureMode := g.pxSecureDropdown.Text
+                if secureMode = "Secure Width"
+                    g.outputEdit.Value := base "\H" hVal
+                else if secureMode = "Secure Height"
+                    g.outputEdit.Value := base "\W" wVal
+                else
+                    g.outputEdit.Value := base "\W" wVal "_H" hVal
+            } else
+                g.outputEdit.Value := base
+        } else {
+            g.outputEdit.Value := dpiVal != "" ? base "\DPI_" dpiVal : base
+        }
+    } else
+        g.outputEdit.Value := base
 }
 OnOutputChange(ctrl, *) {
     static busy := false
@@ -618,8 +891,25 @@ OnOutputChange(ctrl, *) {
     }
     current := Trim(g.outputEdit.Value)
     dpiVal := Trim(g.dpiEdit.Value)
-    if dpiVal != "" && !RegExMatch(current, "\\DPI_\d+$")
-        g.outputEdit.Value := RTrim(current, "\") "\DPI_" dpiVal
+    usePx := g.usePxCheck.Value
+    if usePx {
+        wVal := Trim(g.pxWidth.Value)
+        hVal := Trim(g.pxHeight.Value)
+        secureMode := g.pxSecureDropdown.Text
+        if secureMode = "Secure Width" {
+            if !RegExMatch(current, "\\H\d+$")
+                g.outputEdit.Value := RTrim(current, "\") "\H" hVal
+        } else if secureMode = "Secure Height" {
+            if !RegExMatch(current, "\\W\d+$")
+                g.outputEdit.Value := RTrim(current, "\") "\W" wVal
+        } else {
+            if !RegExMatch(current, "\\W\d+_H\d+$")
+                g.outputEdit.Value := RTrim(current, "\") "\W" wVal "_H" hVal
+        }
+    } else {
+        if dpiVal != "" && !RegExMatch(current, "\\DPI_\d+$")
+            g.outputEdit.Value := RTrim(current, "\") "\DPI_" dpiVal
+    }
     busy := false
 }
 
@@ -646,9 +936,46 @@ ResetToSource(g, *) {
         img := ComObject("WIA.ImageFile")
         img.LoadFile(firstFile)
         g.dpiEdit.Value := Round(img.HorizontalResolution)
+        if g.usePxCheck.Value {
+            g.pxWidth.Value := img.Width
+            g.pxHeight.Value := img.Height
+            g.pxRatio.Value := "Original"
+            UpdatePxRatio(g)
+        }
         img := ""
     } catch
         g.dpiEdit.Value := 72
+    UpdateOutputPath(g)
+}
+
+ResetPxToSource(g, *) {
+    inputFolder := RTrim(Trim(g.inputEdit.Value), "\")
+    if !DirExist(inputFolder) {
+        MsgBox("No input folder selected.")
+        return
+    }
+    extList := ["png", "jpg", "jpeg", "bmp", "webp", "tif"]
+    firstFile := ""
+    for ext in extList {
+        Loop Files inputFolder "\*." ext, "F" {
+            firstFile := A_LoopFileFullPath
+            break 2
+        }
+    }
+    if firstFile = "" {
+        MsgBox("No images found in input folder.")
+        return
+    }
+    try {
+        img := ComObject("WIA.ImageFile")
+        img.LoadFile(firstFile)
+        g.pxWidth.Value := img.Width
+        g.pxHeight.Value := img.Height
+        g.pxRatio.Value := "Original"
+        UpdatePxRatio(g)
+        img := ""
+    } catch
+        MsgBox("Could not read image dimensions.")
     UpdateOutputPath(g)
 }
 
@@ -672,10 +999,12 @@ GuiResize(g, GuiObj, MinMax, Width, Height) {
     g.jpegQuality.Move(,, barW - 42)
     g.jpegQuality.GetPos(&jqx)
     g.jpegValueText.Move(jqx + barW - 42 + 10)
-    half := Floor((barW - 10) / 2)
-    g.btnStart.Move(,, half)
+    third := Floor((barW - 20) / 3)
+    g.btnStart.Move(,, third)
     g.btnStart.GetPos(&sx)
-    g.btnOpenOutput.Move(sx + half + 10,, half)
+    g.btnOpenOutput.Move(sx + third + 10,, third)
+    g.btnOpenOutput.GetPos(&ox)
+    g.btnGuide.Move(ox + third + 10,, third)
 }
 
 IsValidFile(path) {
@@ -728,6 +1057,12 @@ SyncFromSource(g) {
         img := ComObject("WIA.ImageFile")
         img.LoadFile(firstFile)
         dpi := Round(img.HorizontalResolution)
+        if g.usePxCheck.Value {
+            g.pxWidth.Value := img.Width
+            g.pxHeight.Value := img.Height
+            g.pxRatio.Value := "Original"
+            UpdatePxRatio(g)
+        }
         img := ""
     } catch
         dpi := 72
@@ -737,6 +1072,7 @@ SyncFromSource(g) {
     g._lockBusy := 0
     if g.lockOn
         SyncLock(g)
+    UpdateOutputPath(g)
 }
 
 CollectMediaFromFolder(dir) {
@@ -769,12 +1105,32 @@ SortPathsNaturally(paths) {
 StartBatch(g) {
     inputFolder := RTrim(Trim(g.inputEdit.Value), "\")
     outputFolder := RTrim(Trim(g.outputEdit.Value), "\")
-    ; ensure DPI suffix if checkbox is checked
+    ; ensure DPI or PX suffix if checkbox is checked
     if g.dpiFolderCheck.Value {
-        dpiSuffix := "\DPI_" Trim(g.dpiEdit.Value)
-        if !RegExMatch(outputFolder, "\\DPI_\d+$")
-            outputFolder .= dpiSuffix
+        if g.usePxCheck.Value {
+            wVal := Trim(g.pxWidth.Value)
+            hVal := Trim(g.pxHeight.Value)
+            secureMode := g.pxSecureDropdown.Text
+            if secureMode = "Secure Width" {
+                pxSuffix := "\H" hVal
+                if !RegExMatch(outputFolder, "\\H\d+$")
+                    outputFolder .= pxSuffix
+            } else if secureMode = "Secure Height" {
+                pxSuffix := "\W" wVal
+                if !RegExMatch(outputFolder, "\\W\d+$")
+                    outputFolder .= pxSuffix
+            } else {
+                pxSuffix := "\W" wVal "_H" hVal
+                if !RegExMatch(outputFolder, "\\W\d+_H\d+$")
+                    outputFolder .= pxSuffix
+            }
+        } else {
+            dpiSuffix := "\DPI_" Trim(g.dpiEdit.Value)
+            if !RegExMatch(outputFolder, "\\DPI_\d+$")
+                outputFolder .= dpiSuffix
+        }
     }
+    usePx := g.usePxCheck.Value
     sv := Trim(g.scaleEdit.Value)
     scale := sv != "" ? Max(Integer(sv), 1) : 100
     dv := Trim(g.dpiEdit.Value)
@@ -785,6 +1141,25 @@ StartBatch(g) {
     overwrite := g.overwriteCheck.Value
     recursive := g.recursiveCheck.Value
     maxConcurrent := 4
+
+    ; PX mode params
+    if usePx {
+        pxWidth := Max(Integer(Trim(g.pxWidth.Value)), 1)
+        pxHeight := Max(Integer(Trim(g.pxHeight.Value)), 1)
+        ratioStr := Trim(g.pxRatio.Value)
+        if ratioStr = "Original"
+            ratioStr := ""
+        aspectW := 0
+        aspectH := 0
+        if ratioStr != "" {
+            if RegExMatch(ratioStr, "(\d+)\s*:\s*(\d+)", &m) {
+                aspectW := Integer(m[1])
+                aspectH := Integer(m[2])
+                if aspectW < 1 || aspectH < 1
+                    aspectW := aspectH := 0
+            }
+        }
+    }
 
     if !DirExist(inputFolder) {
         MsgBox("Input folder not found.")
@@ -852,10 +1227,27 @@ StartBatch(g) {
                 outputPath := outDir "\" nameNoExt formatExt
             }
 
-            cmd := Format(
-                'powershell -NoProfile -ExecutionPolicy Bypass -File "{1}" -InputPath "{2}" -OutputPath "{3}" -Scale {4} -Dpi {5} -JpegQuality {6}',
-                psScript, filePath, outputPath, scale, dpi, jpegQuality
-            )
+            if usePx {
+                secureMode := g.pxSecureDropdown.Text
+                if secureMode = "Secure Width" {
+                    cmd := Format(
+                        'powershell -NoProfile -ExecutionPolicy Bypass -File "{1}" -InputPath "{2}" -OutputPath "{3}" -Height {4} -Dpi {5} -JpegQuality {6} -UsePixelSize',
+                        psScript, filePath, outputPath, pxHeight, dpi, jpegQuality
+                    )
+                } else {
+                    cmd := Format(
+                        'powershell -NoProfile -ExecutionPolicy Bypass -File "{1}" -InputPath "{2}" -OutputPath "{3}" -Width {4} -Dpi {5} -JpegQuality {6} -UsePixelSize',
+                        psScript, filePath, outputPath, pxWidth, dpi, jpegQuality
+                    )
+                }
+                if aspectW > 0
+                    cmd .= ' -AspectW ' aspectW ' -AspectH ' aspectH
+            } else {
+                cmd := Format(
+                    'powershell -NoProfile -ExecutionPolicy Bypass -File "{1}" -InputPath "{2}" -OutputPath "{3}" -Scale {4} -Dpi {5} -JpegQuality {6}',
+                    psScript, filePath, outputPath, scale, dpi, jpegQuality
+                )
+            }
 
             Run(A_ComSpec ' /c ' cmd, , "Hide", &pid)
             active.Push({pid: pid, name: fileName})
@@ -893,4 +1285,100 @@ StartBatch(g) {
     }
     g.status.Text := Format("{1} done, {2} failed.", successCount, failedCount)
     MsgBox(msg)
+}
+
+ShowGuide(g) {
+    static guideGui := ""
+    if guideGui && WinExist(guideGui) {
+        WinActivate(guideGui)
+        return
+    }
+    guideGui := Gui("+Owner" g.Hwnd, "Guide — Nastarxa Batch Image Resizer")
+    guideGui.BackColor := "2B2D31"
+    guideGui.SetFont("s9", "Segoe UI")
+    guideGui.MarginX := 14
+    guideGui.MarginY := 12
+
+    txt := "
+    (
+Nastarxa Batch Image Resizer
+
+DPI MODE (default):
+  Scale — percentage of original size.
+  DPI — target DPI (dot per inch) for output.
+  Quick DPI — one-click preset DPI buttons.
+  Lock (🔗) — keep Scale and DPI proportional.
+
+PIXEL SIZE MODE (check "Pixel Size"):
+  Width / Height — fixed pixel dimensions.
+  Aspect Ratio — constrain proportions (e.g. 16:9).
+    "1:1" forces square; "Orig" uses original image ratio.
+  Secure — choose which dimension is locked:
+    Auto — both editable.
+    Secure Height — height auto-calculated from width.
+    Secure Width — width auto-calculated from height.
+
+OUTPUT:
+  Format — convert to PNG / JPEG / BMP / TIFF.
+  JPEG Quality — compression level (1–100).
+  Filename Pattern — rename using {name}, {ext}, {counter}.
+  Overwrite — replace source files (no backup folder).
+  Subfolders — include files in subdirectories.
+  Make Folder — auto-name output folder by DPI or WxH.
+
+PRESETS:
+  Save and load DPI-mode settings presets.
+  Not available in Pixel Size mode.
+    )"
+
+    guideGui.AddText("cCFCFCF", txt)
+    guideGui.AddButton("xm y+12 w100 h26 Default", "OK").OnEvent(
+        "Click", (*) => guideGui.Destroy()
+    )
+    guideGui.Show("w480 h460 Center")
+}
+
+ShowFileList(g) {
+    inputDir := RTrim(Trim(g.inputEdit.Value), "\")
+    if !DirExist(inputDir) {
+        MsgBox("Input folder not found.")
+        return
+    }
+    extensions := ["png", "jpg", "jpeg", "bmp", "webp", "tif"]
+    files := []
+    for ext in extensions {
+        mode := g.recursiveCheck.Value ? "R" : ""
+        Loop Files inputDir "\*." ext, mode
+            files.Push(A_LoopFileName)
+    }
+    total := files.Length
+    if total = 0 {
+        MsgBox("No image files found in input folder.")
+        return
+    }
+
+    listGui := Gui("+Owner" g.Hwnd, "File List — " total " image(s)")
+    listGui.BackColor := "2B2D31"
+    listGui.SetFont("s9", "Segoe UI")
+    listGui.MarginX := 10
+    listGui.MarginY := 10
+
+    lv := listGui.AddListView("w500 h400 cCFCFCF Background1E1E1E", ["#", "Filename"])
+    lv.SetFont("s9", "Segoe UI")
+    lv.OnEvent("DoubleClick", OpenFileFromList.Bind(inputDir, lv))
+    for i, name in files
+        lv.Add("", i, name)
+
+    listGui.AddButton("xm y+10 w80 h26 Default", "Close").OnEvent(
+        "Click", (*) => listGui.Destroy()
+    )
+    listGui.Show("w520 h450 Center")
+}
+
+OpenFileFromList(inputDir, lv, *) {
+    row := lv.GetNext()
+    if row = 0
+        return
+    name := lv.GetText(row)
+    try Run('explorer /select,"' inputDir '\' name '"')
 }
